@@ -13,7 +13,7 @@ const LS_USERS     = "zf_users";     // список усіх користува
 const LS_LANG      = "zf_lang";
 const LS_REVIEWS   = "zf_reviews";
 const LS_PCOMMENTS = "zf_pcomments"; // коментарі до товарів
-const LS_ORDERS    = "zf_orders";    // список оформлених замовлень
+const LS_CONTACTS  = "zf_contacts";  // 🆕 збережені повідомлення з форми контактів
 
 // ---------- Налаштування контактів / соцмереж (footer) ----------
 
@@ -2163,16 +2163,69 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // форма контактів (демо)
-  const contactsForm = $("#contactsForm");
+   // форма контактів – тепер збереження в localStorage
+  const contactsForm   = $("#contactsForm");
+  const contactsName   = $("#contactsName");
+  const contactsEmail  = $("#contactsEmail");
+  const contactsTopic  = $("#contactsTopic");
+  const contactsMsg    = $("#contactsMessage");
+
+  function loadContacts() {
+    try {
+      const raw = localStorage.getItem(LS_CONTACTS);
+      const list = raw ? JSON.parse(raw) : [];
+      return Array.isArray(list) ? list : [];
+    } catch (e) {
+      console.warn("Не вдалося прочитати LS_CONTACTS:", e);
+      return [];
+    }
+  }
+
+  function saveContacts(list) {
+    localStorage.setItem(LS_CONTACTS, JSON.stringify(list));
+  }
+
   if (contactsForm) {
     contactsForm.addEventListener("submit", e => {
       e.preventDefault();
-      alert("Дякуємо! У демо-версії повідомлення нікуди не відправляються 🙂");
+
+      const name    = (contactsName?.value || "").trim();
+      const email   = (contactsEmail?.value || "").trim();
+      const topic   = (contactsTopic?.value || "").trim();
+      const message = (contactsMsg?.value || "").trim();
+
+      // проста валідація
+      if (!name || !email || !message) {
+        alert("Будь ласка, заповніть ім’я, e-mail та текст повідомлення.");
+        return;
+      }
+
+      if (!email.includes("@")) {
+        alert("Вкажіть коректний e-mail.");
+        return;
+      }
+
+      // об’єкт повідомлення
+      const contact = {
+        id: Date.now().toString(36),
+        name,
+        email,
+        topic,
+        message,
+        createdAt: new Date().toISOString()
+      };
+
+      const list = loadContacts();
+      list.push(contact);
+      saveContacts(list);
+
+      alert("Дякуємо! Ваше повідомлення надіслано. Ми відповімо протягом робочого дня.");
       contactsForm.reset();
     });
   }
 
-  /* ---------- support widget ---------- */
+
+    /* ---------- support widget ---------- */
 
   const supportToggle = document.getElementById("supportToggle");
   const supportPanel  = document.getElementById("supportPanel");
@@ -2205,86 +2258,81 @@ document.addEventListener("DOMContentLoaded", () => {
     supportClose.addEventListener("click", closeSupport);
   }
 
+  // простий «мозок» Олі: підбирає відповідь за ключовими словами
+  function getSupportReply(message) {
+    const t = (message || "").toLowerCase();
+
+    const askDelivery =
+      t.includes("достав") || t.includes("shipping") || t.includes("delivery");
+    const askPayment =
+      t.includes("оплат") || t.includes("карто") || t.includes("pay");
+    const askOrder =
+      t.includes("замовл") || t.includes("order") || t.includes("замовлення");
+    const askReturn =
+      t.includes("повернен") || t.includes("refund") || t.includes("обмін");
+    const sayThanks =
+      t.includes("дяку") || t.includes("спасиб") || t.includes("thank");
+
+    if (askDelivery) {
+      return "По доставці: зараз у демо-версії ми показуємо умови як приклад. У реальному магазині тут будуть ваші тарифи служби доставки 🚚";
+    }
+    if (askPayment) {
+      return "Щодо оплати: у демо-версії платіж не списується. Зазвичай ми приймаємо оплату карткою онлайн або при отриманні замовлення 💳";
+    }
+    if (askOrder) {
+      return "Про замовлення: зараз це навчальний сайт, тому замовлення не потрапляють у справжню систему. У реальному проєкті тут можна буде відстежувати статус замовлення ✅";
+    }
+    if (askReturn) {
+      return "Повернення та обмін: для демо це просто приклад. Але в бойовій версії тут будуть ваші правила повернень та контакти відповідальних осіб ♻️";
+    }
+    if (sayThanks) {
+      return "Рада була допомогти! Якщо з’являться ще запитання — просто напишіть сюди 🐾";
+    }
+
+    return "Дякую за звернення! Я зберегла ваше запитання. У цій демо-версії я можу підказати щодо замовлень, оплати та доставки.";
+  }
+
   if (supportForm && supportText && supportBody) {
+    // допоміжна функція — додає «бульку» в чат
+    function appendBubble(text, className) {
+      const bubble = document.createElement("div");
+      bubble.className = className;
+      bubble.textContent = text;
+      supportBody.appendChild(bubble);
+      supportBody.scrollTop = supportBody.scrollHeight;
+      return bubble;
+    }
+
     supportForm.addEventListener("submit", e => {
       e.preventDefault();
       const text = supportText.value.trim();
       if (!text) return;
 
-      const bubble = document.createElement("div");
-      bubble.className = "support-msg";
-      bubble.textContent = text;
-      supportBody.appendChild(bubble);
-      supportBody.scrollTop = supportBody.scrollHeight;
-
+      // 1) повідомлення користувача
+      appendBubble(text, "support-msg support-msg-user");
       supportText.value = "";
+
+      // 2) індикатор «Оля друкує…»
+      const typing = appendBubble(
+        "Оля друкує…",
+        "support-msg support-msg-agent support-typing"
+      );
+
+      const replyText = getSupportReply(text);
+
+      // 3) через 0.9–1.8 cек прибираємо індикатор і показуємо відповідь
+      const delay = 900 + Math.random() * 900;
+      setTimeout(() => {
+        typing.remove();
+        appendBubble(replyText, "support-msg support-msg-agent");
+      }, delay);
     });
   }
 
   // product modal close / backdrop
   const productModal = $("#productModal");
   const pmCloseBtn   = $("#pmCloseBtn");
-  if (pmCloseBtn) {
-    pmCloseBtn.addEventListener("click", closeProductModal);
-  }
-  if (productModal) {
-    productModal.addEventListener("click", e => {
-      if (e.target === productModal) closeProductModal();
-    });
-  }
 
-  // toggle коментарів (показати/сховати)
-  const pmCommentsToggleBtn = $("#pmCommentsToggleBtn");
-  const pmCommentsBody = $("#pmCommentsBody");
-  if (pmCommentsToggleBtn && pmCommentsBody) {
-    pmCommentsToggleBtn.addEventListener("click", () => {
-      const dict = I18N[currentLang] || I18N.uk;
-      const showTxt = dict.comments_toggle_show || "Показати коментарі";
-      const hideTxt = dict.comments_toggle_hide || "Сховати коментарі";
-
-      const isHidden = pmCommentsBody.classList.toggle("is-hidden");
-      pmCommentsToggleBtn.textContent = isHidden ? showTxt : hideTxt;
-    });
-  }
-
-  // форма коментаря у товарі
-  const pmCommentForm = $("#pmCommentForm");
-  const pmCommentName = $("#pmCommentName");
-  const pmCommentText = $("#pmCommentText");
-  const pmCommentHint = $("#pmCommentHint");
-
-  if (pmCommentForm && pmCommentText) {
-    pmCommentForm.addEventListener("submit", e => {
-      e.preventDefault();
-      if (!currentProductId) return;
-
-      const name = (pmCommentName && pmCommentName.value.trim()) || "Анонім";
-      const text = pmCommentText.value.trim();
-      if (!text) return;
-
-      const list = productComments[currentProductId] || [];
-      list.unshift({
-        name,
-        text,
-        createdAt: Date.now(),
-        userId: currentUser ? currentUser.id : null,
-        userEmail: currentUser ? currentUser.email : null
-      });
-      productComments[currentProductId] = list;
-      saveLS();
-      renderProductComments(currentProductId);
-
-      pmCommentForm.reset();
-      const dict = I18N[currentLang] || I18N.uk;
-      const msg =
-        dict.comments_saved_hint ||
-        "Дякуємо за коментар! Він збережений у вашому браузері.";
-      if (pmCommentHint) {
-        pmCommentHint.textContent = msg;
-        setTimeout(() => { pmCommentHint.textContent = ""; }, 3000);
-      }
-    });
-  }
 
   updateBadges();
   initNavScroll();
@@ -2945,5 +2993,45 @@ document.addEventListener("DOMContentLoaded", () => {
     } else {
       console.warn("Функція addToCart не знайдена");
     }
+  });
+})();
+// ===== КНОПКИ ОПЛАТИ У ФУТЕРІ =====
+(function () {
+  // усі кнопки з data-payment у футері
+  const paymentButtons = document.querySelectorAll(".sf-chips [data-payment]");
+  if (!paymentButtons.length) return;
+
+  paymentButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const method = btn.getAttribute("data-payment") || "Card";
+
+      // Пробуємо відкрити модалку оформлення замовлення
+      const checkoutBtn = document.getElementById("cartCheckoutBtn");
+
+      if (!checkoutBtn) {
+        alert("Щоб оплатити, спочатку додайте товар у кошик 🙂");
+        return;
+      }
+
+      // клік по кнопці «Оформити замовлення» відкриє модалку
+      checkoutBtn.click();
+
+      // трохи зачекаємо, щоб модалка встигла відкритися, потім виберемо спосіб оплати
+      setTimeout(() => {
+        const paymentSelect = document.getElementById("orderPayment");
+        if (paymentSelect) {
+          // усі ці методи = оплата карткою
+          paymentSelect.value = "card";
+        }
+
+        // (необов'язково) можна підказати користувачу, який спосіб він обрав
+        const hint = document.getElementById("orderHint");
+        if (hint) {
+          hint.textContent =
+            "Ви обрали оплату: " + method + ". Заповніть, будь ласка, контактні дані та підтвердіть замовлення.";
+          hint.style.color = "#9ca3af";
+        }
+      }, 100);
+    });
   });
 })();
