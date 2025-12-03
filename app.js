@@ -1034,10 +1034,12 @@ function ratingToStars(rating) {
   return full + empty;
 }
 
+// ✅ ВИПРАВЛЕНА ФУНКЦІЯ
 function getAllReviewsForCurrentLang() {
   const defaults = getDefaultsForLang();
   return [...defaults, ...userReviews];
 }
+
 
 // ensure we have at least `minCount` reviews (fills with demo defaults when list is short)
 function ensureMinReviews(minCount) {
@@ -3035,3 +3037,30 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 })();
+/* ============================
+   PRODUCT MODAL — FIX CLOSE
+   ============================ */
+
+// Закриття по хрестику
+document.addEventListener("click", (e) => {
+  if (e.target.id === "pmCloseBtn") {
+    closeProductModal();
+  }
+});
+
+// Закриття по кліку на фон
+document.addEventListener("click", (e) => {
+  const modal = document.getElementById("productModal");
+  if (!modal) return;
+
+  if (e.target === modal) {
+    closeProductModal();
+  }
+});
+
+// Закриття по Escape
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    closeProductModal();
+  }
+});
